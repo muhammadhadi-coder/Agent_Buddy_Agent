@@ -1,0 +1,128 @@
+[
+  {
+    "id": "agent-foundations",
+    "title": "Agent Foundations",
+    "summary": "An agent in the OpenAI Agents SDK bundles a model, instructions, and tools into a single unit that can act on a user's request. Unlike a bare chat completion, an agent can loop between reasoning and calling tools until it has enough information to answer. Understanding this loop is the mental model you need for every feature that follows.",
+    "key_facts": [
+      "An Agent has three core parts: instructions (the system prompt), a model, and a list of tools.",
+      "Agents run in a model loop: the model decides whether to call a tool or return a final answer."
+    ]
+  },
+  {
+    "id": "setup-and-installation",
+    "title": "Setup and Installation",
+    "summary": "You install the SDK with `pip install openai-agents` (or `uv add openai-agents`) and keep secrets in environment variables loaded from a .env file. API keys are read at runtime with `set_default_openai_api` or passed directly to a client rather than hard-coded. A minimal project is just a pyproject file, one main.py, and a virtual environment.",
+    "key_facts": [
+      "The package name on PyPI is `openai-agents`, but the import name is `agents`.",
+      "Never commit .env; load it with python-dotenv's `load_dotenv()` at startup."
+    ]
+  },
+  {
+    "id": "running-agents",
+    "title": "Running Agents and RunResult",
+    "summary": "`Runner.run()` executes an agent and returns a `RunResult` containing the final output, all generated items, and the raw response. `Runner.run_sync()` is the blocking version, while `Runner.run_streamed()` returns a streamed result you await later. The result object also exposes usage statistics and the full call history, which is invaluable for debugging.",
+    "key_facts": [
+      "`Runner.run()` is a coroutine and must be awaited inside an async function.",
+      "`RunResult.final_output` is the assistant's text, while `result.new_items` holds tool calls and messages."
+    ]
+  },
+  {
+    "id": "instructions-and-personas",
+    "title": "Instructions and Personas",
+    "summary": "The `instructions` argument is the agent's system prompt and is where you define role, tone, and constraints. Instructions can be a static string or a dynamic function that receives the run context and produces a tailored prompt. Keeping instructions short and specific beats stuffing in every edge case you can imagine.",
+    "key_facts": [
+      "Dynamic instructions are functions decorated or passed as callables that accept `RunContextWrapper`.",
+      "Instructions are sent with every model call in the loop, not just the first one."
+    ]
+  },
+  {
+    "id": "function-tools",
+    "title": "Function Tools",
+    "summary": "The `@function_tool` decorator turns a plain Python function into a tool the model can call, generating its schema from the function's type hints and docstring. The SDK validates incoming arguments against that schema and returns the function's value back to the model as a tool result. Well-written docstrings matter because the model reads them to decide when to call the tool.",
+    "key_facts": [
+      "`@function_tool` derives the tool name, description, and JSON schema from the function signature.",
+      "Tool functions can be async, and their return value must be JSON-serializable."
+    ]
+  },
+  {
+    "id": "structured-outputs",
+    "title": "Structured Outputs",
+    "summary": "Passing `output_type=` with a Pydantic model makes the agent finish with a typed object instead of free text. The SDK enforces the schema during the final model call, so parsing errors surface as exceptions rather than malformed strings. This is the recommended way to hand agent results to downstream code.",
+    "key_facts": [
+      "`output_type` accepts any Pydantic `BaseModel` subclass.",
+      "Use `result.final_output_as(MyModel)` for a typed view of the final output."
+    ]
+  },
+  {
+    "id": "handoffs",
+    "title": "Handoffs",
+    "summary": "A handoff lets one agent delegate the entire conversation to another agent mid-run, transferring control and context. You declare handoffs on the source agent with `handoffs=[...]`, and the model picks a target based on the descriptions you provide. Handoffs are how you build triage-then-specialist architectures without writing routing logic yourself.",
+    "key_facts": [
+      "`handoffs` accepts agent objects or factories, and the SDK exposes them to the model as special tools.",
+      "Each handoff target needs a clear description so the model can route correctly."
+    ]
+  },
+  {
+    "id": "guardrails",
+    "title": "Guardrails",
+    "summary": "Input guardrails run on the user's message before the agent's main logic, while output guardrails check the agent's final response. Both are triggered in parallel with the main run so validation does not add a blocking serial step. When a guardrail trips, it raises an interruption that stops the run from producing a bad answer.",
+    "key_facts": [
+      "Input guardrails execute concurrently with the agent's primary task.",
+      "Guardrail results are tripped by returning a `tripwire` result rather than raising arbitrary errors."
+    ]
+  },
+  {
+    "id": "sessions-and-memory",
+    "title": "Sessions and Conversation Memory",
+    "summary": "Sessions store conversation history across turns so an agent can remember what was said earlier. `SQLiteSession` persists messages to a local database, while `SessionMemory` provides a simpler in-process option. Without a session, every `Runner.run()` call is stateless and the agent starts blank each time.",
+    "key_facts": [
+      "Sessions are passed to `Runner.run()` via the `session=` parameter.",
+      "History is trimmed or summarized according to your memory strategy to control token cost."
+    ]
+  },
+  {
+    "id": "streaming",
+    "title": "Streaming",
+    "summary": "`Runner.run_streamed()` returns immediately with a `RunResultStreaming` you can iterate for live model output. Streaming events cover raw text deltas, tool call progress, and agent turn changes, which is what powers chat-style interfaces. You must consume the stream, otherwise the run does not complete.",
+    "key_facts": [
+      "Use `async for event in result.stream_events()` to receive granular run events.",
+      "The final `RunResult` is available on `result.result()` after the stream finishes."
+    ]
+  },
+  {
+    "id": "tracing",
+    "title": "Tracing and Observability",
+    "summary": "The SDK automatically creates traces and spans for each run, tool call, and model request so you can see exactly where time and tokens went. Traces export to the OpenAI platform by default, or to any OpenTelemetry collector you configure. Disabling tracing is a one-liner, but doing so removes your best debugging tool.",
+    "key_facts": [
+      "Tracing works out of the box with no extra code and groups items into a single trace per run.",
+      "`set_tracing_exporter()` switches exporters, including OpenTelemetry backends like Jaeger."
+    ]
+  },
+  {
+    "id": "models-and-providers",
+    "title": "Models and Providers",
+    "summary": "The default `OpenAIChatCompletionsModel` is backed by an `AsyncOpenAI` client, and swapping `base_url` and `api_key` lets you point at any OpenAI-compatible endpoint. Providers like Gemini expose an OpenAI-compatible API, so they plug into the SDK with only a client change. You can also set `model=` by string name after configuring a default model provider.",
+    "key_facts": [
+      "Third-party models work by constructing `AsyncOpenAI(api_key=..., base_url=...)` and wrapping it in `OpenAIChatCompletionsModel`.",
+      "The model string and the client must agree — passing a Gemini model name to an OpenAI-only client fails."
+    ]
+  },
+  {
+    "id": "multi-agent-orchestration",
+    "title": "Multi-Agent Orchestration",
+    "summary": "You can compose agents two ways: give an agent the other agents as handoffs for whole-conversation transfer, or wrap agents as tools so one agent calls them as sub-routines. The `agents-as-tools` pattern keeps a single lead agent in control while delegating focused work. Choosing between them depends on whether control should switch permanently or return to the caller.",
+    "key_facts": [
+      "`Agent.as_tool()` converts an agent into a callable tool without giving up control.",
+      "Handoffs transfer control permanently; agents-as-tools return the result to the calling agent."
+    ]
+  },
+  {
+    "id": "mcp-and-deployment",
+    "title": "MCP and Deployment",
+    "summary": "The Model Context Protocol lets your agent discover tools from external servers at runtime instead of hard-coding every function. The SDK supports both stdio and SSE/HTTP MCP servers, exposing their tools alongside your own `@function_tool` functions. For production you add logging, rate-limit handling, and stateless session storage before shipping.",
+    "key_facts": [
+      "`MCPServerStdio` and `MCPServerSse` are the two built-in MCP transport wrappers.",
+      "MCP tools are loaded asynchronously at run time via `list_tools()` on the server object."
+    ]
+  }
+]
